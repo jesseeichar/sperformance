@@ -7,8 +7,6 @@ import collection.mutable.ListBuffer
 import java.io.{FileOutputStream, BufferedOutputStream, PrintStream, File}
 import util.FileUtils
 import java.net.URL
-import scalax.io.Resource
-import scalax.io.Codec
 
 /**
  * Abstract interface designed to allow customize where reports go and how they are generated. (i.e. could be sent to a Swing UI).
@@ -129,7 +127,7 @@ class CSVRunContext(outputFile:File) extends RunContext {
 
   def writeResults() = {
     outputFile.getParentFile.mkdirs
-    Resource.fromFile(outputFile).writer(Codec.UTF8).acquireFor {
+    FileUtils.writer(outputFile) {
       writer =>
         for {
           (md, cluster) <- testContext.clusters

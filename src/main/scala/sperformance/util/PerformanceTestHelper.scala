@@ -8,7 +8,7 @@ package util
 private[sperformance] object PerformanceTestHelper {
 
   /** Currently the number of times we run the warm up test when warming up the JVM. */
-  lazy val warmUpRuns = 100000 //TODO - Lookup in some manenr...
+  lazy val warmUpRuns = 100000 //TODO - Lookup in some manner...
 
   /**
    * Aggregates test results by taking an average.

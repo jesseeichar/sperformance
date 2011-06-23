@@ -2,7 +2,9 @@ package sperformance
 package util
 
 import annotation.tailrec
-import java.io.{FileFilter, File}
+import java.nio.channels.Channels
+import java.io._
+import java.net.URL
 
 object FileUtils {
 
@@ -46,5 +48,16 @@ object FileUtils {
         findIndexesHelper(None, filesToSearch, f :: indexFiles)
     }
     findIndexesHelper(None, getDirsOrIndexes(dir), Nil)
+  }
+  
+  val copy = org.apache.commons.io.FileUtils.copyURLToFile(_:URL,_:File)
+  
+  def writer[U](file:File)(f:FileWriter => U):U = {
+    val writer = new FileWriter(file)
+    try {
+      f(writer)
+    } finally {
+      writer.close()
+    }
   }
 }

@@ -1,7 +1,7 @@
 package sperformance
 
 import generators._
-
+import historical._
 /**
  * This class represents all state recorded from a given performance test.  It is the quantum of communicatoin of data in
  * the entire system.
@@ -74,7 +74,8 @@ trait PerformanceTest {
     if(isObject) "Object-" + className.dropRight(1) else "Class-" + className
   }
 
-
+  def baseLine : BaseLine = IgnoreBaseLine
+  
   /**
    * This method will execute a performance test.
    */

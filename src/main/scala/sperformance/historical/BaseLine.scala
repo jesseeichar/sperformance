@@ -12,6 +12,7 @@ import java.util.zip._
 
 trait BaseLine {
   def ensureBaseLineExists[T <: PerformanceTest](runContext:RunContext, test:T):Unit
+//  def relativize()
 }
 
 /**

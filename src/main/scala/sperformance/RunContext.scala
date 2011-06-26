@@ -1,5 +1,6 @@
 package sperformance
 
+import collection.JavaConverters._
 import charting.Charting
 import intelligence.Cluster
 import org.jfree.chart.{ChartUtilities, JFreeChart}
@@ -7,6 +8,7 @@ import collection.mutable.ListBuffer
 import java.io.{FileOutputStream, BufferedOutputStream, PrintStream, File}
 import util.FileUtils
 import java.net.URL
+import org.apache.commons.io.{FileUtils => AFileUtils}
 
 /**
  * Abstract interface designed to allow customize where reports go and how they are generated. (i.e. could be sent to a Swing UI).
@@ -124,24 +126,43 @@ class CSVRunContext(outputFile:File) extends RunContext {
   }
 
   private def makeSeriesName(cluster:Cluster)(result : PerformanceTestResult) = cluster.makeName(result.attributes)
-
+  private def quote(string:String) = "\""+string.replaceAll("\"","\\\"")+"\""
+  private def serialize(map:Map[String,Any])
   def writeResults() = {
     outputFile.getParentFile.mkdirs
     FileUtils.writer(outputFile) {
       writer =>
         for {
-          (md, cluster) <- testContext.clusters
-          val clusterName = md.attributes.mkString("-")
-          (name,results) <- cluster.results.groupBy(makeSeriesName(cluster) _)
+          (cluster,i) <- testContext.clusters.values.zipWithIndex
+          (moduleName,results) <- cluster.results.groupBy(makeSeriesName(cluster) _)
           result <- results
-            (axisName,axisData) <- result.axisData
         } {
-          val rowData = (clusterName, name,axisName,axisData,result.time)
-          val rowAsStrings = rowData.productIterator map {_.toString} map {_.replace("\"","\\\"")}
-          writer.write(rowAsStrings mkString ("\"","\",\"","\""))
+          val atts = result.attributes.toSeq map {case (key,value) => key.toString + "->" + value}
+          val axisData = result.axisData.toSeq map {case (key,value) => key.toString + "->" + value}
+          val rowData = (i +: result.time +: axisData) ++ ("|" +: atts)
+          val rowAsStrings = rowData map {_.toString} map (quote)
+          writer.write(rowAsStrings mkString ",")
           writer.write("\n")
         }
     }
+  }
 
+}
+
+object CSV {
+  private def toMap(data:Seq[String]) = {
+    val parts = data.map(_ split "->" toSeq).map{case Seq(key,value) => (key,value)}
+    Map(parts:_*)
+  }
+  def load(report:URL) = {
+    val clusters = new intelligence.ClusterResults
+
+    for ( line <- io.Source.fromURL(report).getLines() ) {
+      val Seq(clusterIndex, time, rest @ _*) = line.split("\",\"").toSeq
+      val (axisData,atts) = rest.span(_ != "|")
+      val result = PerformanceTestResult(time = time.toLong, axisData = toMap(axisData), attributes = toMap(atts drop 1))
+      clusters.reportResult(result)
+    }
+    clusters
   }
 }

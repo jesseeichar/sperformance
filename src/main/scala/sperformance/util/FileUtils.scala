@@ -2,7 +2,6 @@ package sperformance
 package util
 
 import annotation.tailrec
-import java.nio.channels.Channels
 import java.io._
 import java.net.URL
 
@@ -49,11 +48,11 @@ object FileUtils {
     }
     findIndexesHelper(None, getDirsOrIndexes(dir), Nil)
   }
-  
+
   val copy = org.apache.commons.io.FileUtils.copyURLToFile(_:URL,_:File)
   
-  def writer[U](file:File)(f:FileWriter => U):U = {
-    val writer = new FileWriter(file)
+  def writer[U](file:File)(f:Writer => U):U = {
+    val writer = new OutputStreamWriter(new FileOutputStream(file), "UTF-8")
     try {
       f(writer)
     } finally {

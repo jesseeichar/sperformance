@@ -26,6 +26,7 @@ class Cluster(val metaData : ClusterMetaData) {
      results append result
   }
 
+  def name = makeName(metaData.attributes)
 
   def makeName(attributes : Map[String, Any]) = {
     def sortedAttributeKeys = attributes.keySet.toList.sortWith( (x,y) => x.compareToIgnoreCase(y) >= 0)

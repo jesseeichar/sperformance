@@ -26,7 +26,7 @@ trait PerformanceDSLTest extends PerformanceTest {
    */
   private def withCurrentMethod[A](method : String)(f : => A) = withNewContext(_.addAttribute("method", method))(f)
 
-  //Current gnerator of tests...
+  //Current generator of tests...
   private val _current_generator = new Stack[Generator[_]]
   private def addGenerator(g : Generator[_]) : Generator[_] = {
     if(!_current_generator.isEmpty) {

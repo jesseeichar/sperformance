@@ -5,14 +5,26 @@ import scala.util.control.Exception._
 import util.FileUtils
 import collection.JavaConverters._
 import java.net.{URLClassLoader, URL}
-import sperformance.{CSVRunContext, RunContext, PerformanceTest}
+import sperformance.{RunContext, PerformanceTest}
 import java.io.File
 import java.lang.Class
 import java.util.zip._
+import store.XmlStoreResults
+import store.XmlLoadResults
+import sperformance.intelligence.ClusterResults
 
-trait BaseLine {
+/**
+ * The trait for BaseLine implementations.  The concept is that when a test is ran a baseline will be generated for the current
+ * system and that will be compared to version 1.  If they differ then a ratio is calculated which is used to relativize the values 
+ * of the test. This allows future test to be done on other computers still have the values provide meaning to the other tests done
+ * on previous versions of the system.
+ * 
+ * The Typical implementation will be to download a Jar which contains the test and all dependencies as they were to generate version 1
+ * and execute the test using that jar.  The results can then be compared to version one.
+ */
+abstract class BaseLine {
   def ensureBaseLineExists[T <: PerformanceTest](runContext:RunContext, test:T):Unit
-//  def relativize()
+  def relativize[T <: PerformanceTest](runContext:RunContext, test:T):PerformanceTestRunContext
 }
 
 /**
@@ -24,7 +36,7 @@ trait BaseLine {
  */
 object RunBaseLine {
   def main(args:Array[String]) {
-    require(args.length == 3, "not Enough parameters.  Expected 3 parameters but only have: "+args.mkString)
+    require(args.length == 3, "not Enough parameters.  Expected 3 parameters(jarfile,packages,outputDir) but only have: "+args.mkString)
     
     val outputDirectory = new File(args(2))
     val packageDirs = args(1).split(":").toList map {_.replace(".","/")}
@@ -56,9 +68,10 @@ object RunBaseLine {
         
       test.foreach {test => 
         println("Running Test: "+test.name)
-        val context = new CSVRunContext(new File(outputDirectory,test.name+".csv")) with BaseLineContext
+        val outFile: File = new File(outputDirectory, test.name + ".xml")
+        val context = new HistoricalRunContext(outFile, false, new XmlStoreResults(_)) with BaseLineContext
         test.runTest(context)
-        context.writeResults()
+        context.writeBaseline(test.name)
         println(test.name+" is complete")
       }
     }
@@ -74,6 +87,8 @@ trait BaseLineContext
 
 object IgnoreBaseLine extends BaseLine {
   def ensureBaseLineExists[T <: PerformanceTest](runContext:RunContext, test:T) = ()
+  def relativize[T <: PerformanceTest](runContext:RunContext, test:T) = 
+    runContext.testContext
 }
 object JarBaseLine {
   def apply(jarURL:URL, allTestPackages:String*) = new JarBaseLine{
@@ -83,10 +98,33 @@ object JarBaseLine {
 }
 trait JarBaseLine extends BaseLine {
   def jar:URL
+    val historyDir = new File("target/sperformance/history")
+    val baselineDir = new File(historyDir,"baseline")
+
   def testPackages:Traversable[String]
+  def relativize[T <: PerformanceTest](runContext:RunContext, test:T):PerformanceTestRunContext = {
+    val baselineFile = new File(baselineDir, test.name+".xml")
+    val loadedResults = new XmlLoadResults(baselineFile.toURI.toURL).read()
+
+    var relativizedResults = new ClusterResults()
+    
+    val currentResults = runContext.testContext.asInstanceOf[ClusterResults]
+    for {
+      (currentMd, currentResult) <- currentResults.clusters
+      loadedResult = loadedResults.clusters.get(currentMd)
+    } {
+      if(loadedResult.isEmpty) {
+        println("Warning no result for "+currentMd+" in baseline")
+        currentResult.results.foreach{relativizedResults.reportResult}
+      } else {
+        
+      }
+    }
+    relativizedResults
+  }
   def ensureBaseLineExists[T <: PerformanceTest](runContext:RunContext, test:T):Unit = {
-    val baselineDir = new File("target/sperformance/baseline")
-    val requiredFile = new File(baselineDir, test.name+".csv")
+    // dirs
+    val requiredFile = new File(baselineDir, test.name+".xml")
     if(!(runContext.isInstanceOf[BaseLineContext]) && !baselineDir.exists) {
       println("Baseline does not exist and will be created using the "+JarBaseLine+" jar")
       val cache = File.createTempFile("baseline","jar")
@@ -106,7 +144,10 @@ trait JarBaseLine extends BaseLine {
 
       assert(requiredFile.exists, 
         "Baseline creation failed.  Check that the baseline jar can correctly execute given the command: "+(cmd mkString " "))
-      
+      val version1Data = new File(historyDir,"version1")
+      if(!version1Data.exists) {
+         org.apache.commons.io.FileUtils.copyFileToDirectory(version1Data, historyDir)
+      }
     }
   }
 }

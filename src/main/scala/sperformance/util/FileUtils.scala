@@ -51,12 +51,15 @@ object FileUtils {
 
   val copy = org.apache.commons.io.FileUtils.copyURLToFile(_:URL,_:File)
   
-  def writer[U](file:File)(f:Writer => U):U = {
-    val writer = new OutputStreamWriter(new FileOutputStream(file), "UTF-8")
+  def writer[U](file:File)(f:Writer => U):U = manage(new OutputStreamWriter(new FileOutputStream(file), "UTF-8"))(f)
+
+  def outputStream[U](file:File)(f:FileOutputStream => U):U = manage(new FileOutputStream(file))(f)
+
+  def manage[U,R <: Closeable](c : R)(f:R => U):U = {
     try {
-      f(writer)
+      f(c)
     } finally {
-      writer.close()
+      c.close()
     }
   }
 }

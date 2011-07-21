@@ -6,6 +6,7 @@ import intelligence.Cluster
 import org.jfree.chart.{ChartUtilities, JFreeChart}
 import collection.mutable.ListBuffer
 import java.io.{FileOutputStream, BufferedOutputStream, PrintStream, File}
+import store.StoreResultStrategy
 import util.FileUtils
 import java.net.URL
 import org.apache.commons.io.{FileUtils => AFileUtils}
@@ -116,53 +117,47 @@ class DefaultRunContext(val outputDirectory : File, testName : String) extends R
 
 /**
  * Generates no charts, instead this writes the results to a file so that tests can be tracked
- * and charted over time
+ * and charted over time.  The format of the file is determined by the [[sperformance.store.StoreResultStrategy]] object
+ * passed to writeResults
+ * 
+ * @param historyDir The directory containing the history of performance tests
+ * @param newVersion if true then a new version will be create if false then 
+ * 				 	 the latest version will be overridden
+ * @param factory    The factory function for creating a StoreResultStrategy 
  */
-class CSVRunContext(outputFile:File) extends RunContext {
+class HistoricalRunContext(historyDir:File, newVersion:Boolean, factory:File => StoreResultStrategy) extends RunContext {
 
+  val baselineDir = new File(historyDir, "baseline")
+  val versionsDir = new File(historyDir, "versions")
   val testContext = new intelligence.ClusterResults
+  val currentVersionDir ={
+    val version = if(versionsDir.list == null) {
+      1
+    } else {
+      val lastestVersion = versionsDir.list.toList.maxBy(_.toInt)
+	  lastestVersion.toInt + (if(newVersion) 1 else 0)
+    }
+    new File(versionsDir, version toString)
+  }
+
   def writeResultingChart(clusterName : List[String], chartName : String, chart : JFreeChart) : Unit = {
     // this doesn't write charts
   }
 
-  private def makeSeriesName(cluster:Cluster)(result : PerformanceTestResult) = cluster.makeName(result.attributes)
-  private def quote(string:String) = "\""+string.replaceAll("\"","\\\"")+"\""
-  private def serialize(map:Map[String,Any])
-  def writeResults() = {
-    outputFile.getParentFile.mkdirs
-    FileUtils.writer(outputFile) {
-      writer =>
-        for {
-          (cluster,i) <- testContext.clusters.values.zipWithIndex
-          (moduleName,results) <- cluster.results.groupBy(makeSeriesName(cluster) _)
-          result <- results
-        } {
-          val atts = result.attributes.toSeq map {case (key,value) => key.toString + "->" + value}
-          val axisData = result.axisData.toSeq map {case (key,value) => key.toString + "->" + value}
-          val rowData = (i +: result.time +: axisData) ++ ("|" +: atts)
-          val rowAsStrings = rowData map {_.toString} map (quote)
-          writer.write(rowAsStrings mkString ",")
-          writer.write("\n")
-        }
-    }
+  /**
+   * Write out the data to the baseline directory
+   */
+  def writeBaseline(testName:String) = {
+    val strategy = factory(new File(baselineDir,testName))
+    strategy.write(testContext)
   }
 
-}
-
-object CSV {
-  private def toMap(data:Seq[String]) = {
-    val parts = data.map(_ split "->" toSeq).map{case Seq(key,value) => (key,value)}
-    Map(parts:_*)
+  /**
+   * Write out a version
+   */
+  def writeVersion(testName:String) = {
+    val strategy = factory(new File(currentVersionDir,testName))
+    strategy.write(testContext)
   }
-  def load(report:URL) = {
-    val clusters = new intelligence.ClusterResults
 
-    for ( line <- io.Source.fromURL(report).getLines() ) {
-      val Seq(clusterIndex, time, rest @ _*) = line.split("\",\"").toSeq
-      val (axisData,atts) = rest.span(_ != "|")
-      val result = PerformanceTestResult(time = time.toLong, axisData = toMap(axisData), attributes = toMap(atts drop 1))
-      clusters.reportResult(result)
-    }
-    clusters
-  }
 }

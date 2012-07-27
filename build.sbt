@@ -9,7 +9,7 @@ name := "sperformance"
 
 version := "0.1"
 
-scalaVersion := "2.10.0-SNAPSHOT"
+scalaVersion := "2.10.0-M6"
 
 resolvers += "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/"
 
